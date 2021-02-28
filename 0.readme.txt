@@ -1,0 +1,4 @@
+1. The main entrence of the program is SecondStepMain.
+2. We put the geometry file under ./converted_geometry; the velocity fields in ./data.
+3. We can find a lot of chip designs has been pre-solved and tested under ./data such as  80um, 90um, LabChip, and etc.  
+These are the chip names, which are the same variable chip_name in the script.
