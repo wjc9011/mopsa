@@ -13,5 +13,17 @@ namespace mopsa
 
 using polygon = Polygon<point>;
 
+template<class T>
+struct Velocity {
+  T vx, vy;
+
+  Velocity() : vx(0), vy(0) {}
+
+  Velocity(T vx, T vy) : vx(vx), vy(vy) {}
+
+};
+
+using velocity = Velocity<double>;
+
 }
 #endif

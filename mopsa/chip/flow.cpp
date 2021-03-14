@@ -26,11 +26,6 @@ Flow::load_flow(
     if(!_expect_token(read_token(), ",")) return false;
     v = std::stod(read_token());
     _nodes.emplace_back(point(x, y), v, 0);
-
-    //if(_nodes.size() <= 10) {
-      //std::cout << to_string(_nodes.back().coord) << " "
-  //<< _nodes.back().vx << '\n';
-    //}
   }
 
   open_file(file_y);
@@ -50,10 +45,6 @@ Flow::load_flow(
     ASSERT(_nodes[cnt].coord == point(x, y));
     _nodes[cnt].vy = v;
 
-    //if(cnt < 10) {
-      //std::cout << to_string(_nodes[cnt].coord) << " "
-  //<< _nodes[cnt].vy << '\n';
-    //}
     cnt += 1;
   }
   ASSERT(cnt == _nodes.size());

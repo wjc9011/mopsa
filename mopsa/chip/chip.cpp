@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <mopsa/chip/chip.hpp>
 #include <mopsa/logger/logger.hpp>
 #include <mopsa/geometry/point.hpp>
@@ -19,7 +20,8 @@ Chip::load_design(const std::filesystem::path &design_path)
   bool res = _design.load_design(design_path);
 
   Logger::add_record("chip", "# of obstacles", _design.num_obstacles());
-
+  Logger::add_record("chip", "width:", _design.width());
+  Logger::add_record("chip", "height:", _design.height());
   Logger::add_record("chip", "upper left : "
      + to_string(_design.upper_left()), 1);
   Logger::add_record("chip", "lower right : " 
@@ -41,6 +43,7 @@ Chip::load_flow(
 
   Logger::add_record("chip", "# of flow nodes", _flow.size());
 
+  LOG(INFO) << _flow.size() << " nodes are loaded.\n";
   return res;
 }
 

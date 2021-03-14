@@ -33,9 +33,12 @@ public:
 
   inline int size() const;
 
+  inline const auto & nodes() const;
+
 private:
 
   std::string read_comment() override;
+
   bool _is_comment_prefix() override;
 
 private:
@@ -52,6 +55,12 @@ inline int
 Flow::size() const
 {
   return _nodes.size();
+}
+
+inline const auto &
+Flow::nodes() const
+{
+  return _nodes;
 }
 
 }

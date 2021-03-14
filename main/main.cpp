@@ -1,11 +1,15 @@
+#include <boost/geometry/arithmetic/arithmetic.hpp>
 #include <boost/geometry/geometry.hpp>
 #include <boost/geometry/geometries/polygon.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
 
+#include <mopsa/chip/chip.hpp>
+#include <mopsa/sim/particle.hpp>
+#include <mopsa/sim/sim.hpp>
+#include <mopsa/geometry/point.hpp>
+
 #include <iostream>
 #include <deque>
-
-#include <mopsa/chip/chip.hpp>
 
 int main()
 {
@@ -28,4 +32,21 @@ int main()
   std::filesystem::path path_x = "../data/80um-x.csv";
   std::filesystem::path path_y = "../data/80um-y.csv";
   chip.load_flow(path_x, path_y);
+
+  mopsa::point p = {chip.design().min_x(), 
+    (chip.design().min_y() + chip.design().max_y())/2};
+
+  p = mopsa::point_add(p, mopsa::point(40, 0));
+
+  mopsa::Particle particle(p, 5, 200);
+
+  mopsa::Simulate::Setting setting;
+  setting.time_resolution = 10;
+  setting.sim_boundary_x = chip.design().max_x() * 0.95;
+  //setting.max_timestep = 100000;
+  setting.max_timestep = 10;
+  setting.output_folder = "../sim_output/80um/cpp/";
+  setting.chip_name = "80um";
+
+  mopsa::Simulate(&chip, &particle, &setting).simulate();
 }

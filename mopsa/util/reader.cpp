@@ -81,6 +81,7 @@ std::string Reader::read_token(bool ignore_comment /*= true*/)
 
   while(!_is_end()) {
     while(!_is_end() and _is_sep_char()) _get_char();
+    if(_is_end()) break;
 
     if( _is_comment_prefix() ) {
       if( !ignore_comment ) return read_comment(); 
@@ -99,7 +100,6 @@ std::string Reader::read_token(bool ignore_comment /*= true*/)
     }
   }
 
-  std::cout << token << std::endl;
   return token;
 }
 
@@ -231,8 +231,6 @@ bool Reader::read_float(float &val) {
 
   return true;
 }
-
-std::string read_string(); // "string"
 
 char Reader::_get_char() {
 

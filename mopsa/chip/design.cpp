@@ -7,6 +7,18 @@
 namespace mopsa
 {
 
+/**************************************
+ Obstacle
+ **************************************/
+Obstacle::Obstacle(polygon poly)
+  :_polygon(poly)
+{
+
+}
+
+/**************************************
+ Design
+ **************************************/
 bool 
 Design::load_design(const std::filesystem::path &design_path)
 {
@@ -26,7 +38,8 @@ Design::load_design(const std::filesystem::path &design_path)
 
   std::vector<int> a;
   std::vector<double> xs, ys;
-  _obstacles.resize(num_polygon);
+  std::vector<polygon> polygons;
+  polygons.resize(num_polygon);
   for(int i=0; i<num_polygon; i++) 
   {
     int num_points = 0;
@@ -36,7 +49,7 @@ Design::load_design(const std::filesystem::path &design_path)
       return false;
     }
 
-    _obstacles[i].outer().reserve(num_points);
+    polygons[i].reserve(num_points);
     for(int j=0; j<num_points; j++) 
     {
       double x, y;
@@ -45,7 +58,7 @@ Design::load_design(const std::filesystem::path &design_path)
         LOG(ERROR) << "Cannnot read " << design_path << "\n"; 
         return false;
       }
-      _obstacles[i].outer().emplace_back(x, y);
+      polygons[i].push_back({x, y});
       xs.push_back(x);
       ys.push_back(y);
     }
@@ -58,19 +71,32 @@ Design::load_design(const std::filesystem::path &design_path)
     {
       LOG(WARNING) << "Obstacle " << i << " is a line segment.\n";
     }
-    else if(_obstacles[i].startpoint() != _obstacles[i].endpoint()) 
+    else if(polygons[i].startpoint() != polygons[i].endpoint()) 
     {
       LOG(WARNING) << "Obstacle " << i << " is not a ring. " 
-        << to_string(_obstacles[i].startpoint())
+        << to_string(polygons[i].startpoint())
         << " <-> "
-        << to_string(_obstacles[i].endpoint()) << '\n';
+        << to_string(polygons[i].endpoint()) << '\n';
     }
   }
+
+  for(auto &poly : polygons) {
+    _obstacles.emplace_back(std::move(poly));
+  }
+
   std::sort(xs.begin(), xs.end());
   std::sort(ys.begin(), ys.end());
 
   _upper_left  = {xs.front(), ys.front()};
   _lower_right = {xs.back(), ys.back()};
+
+  _min_x = xs.front();
+  _max_x = xs.back();
+  _min_y = ys.front(); 
+  _max_y = ys.back();
+
+  _width  = xs.back() - xs.front();
+  _height = ys.back() - ys.front();
 
   return true;
 }

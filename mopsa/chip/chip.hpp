@@ -17,8 +17,13 @@ public:
   Chip();
 
   bool load_design(const std::filesystem::path &design_path);
+
   bool load_flow(const std::filesystem::path &flow_x_path, 
       const std::filesystem::path &flow_y_path);
+
+  inline const Flow & flow() const;
+
+  inline const Design & design() const;
 
 private:
 
@@ -26,6 +31,22 @@ private:
 
   Flow _flow;
 };
+
+/**************************************
+  Inline Function
+ **************************************/
+inline const Flow &
+Chip::flow() const
+{
+  return _flow;
+}
+
+inline const Design &
+Chip::design() const
+{
+  return _design;
+}
+
 
 }
 

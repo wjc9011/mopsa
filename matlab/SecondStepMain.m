@@ -1,52 +1,45 @@
-clc;clear;close all
+%clc;clear;close all
 % JW Oct 2016 
 
-% define something
-%chip_name = 'critical-part';
-%chip_name = 'DLD-triangle';
-chip_name = 'Quarter Circle';
-load(strcat('./converted_geometry/', chip_name, '.mat')) % load geometry information as cell array
-%initial_position = [0.05 0.02]; % 
-%dP = 0.02; % diameter of the particle, same as your simulation unit in velocity field
-
-alpha = 1; % calibration for vx
-beta = 1.45; % calibration for vy
+%setting
 
 % load model velocityProfile
-node = csvread(strcat('./data/', chip_name,'-x.csv'), 9, 0);
-node(:,3)=[];
-%x = csvread(strcat('./data/', chip_name,'-x.csv'), 9, 2);
-%y = csvread(strcat('./data/', chip_name,'-y.csv'), 9, 2);
+load(strcat('../converted_geometry/', chip_name, '.mat')) % load geometry information as cell array
+node = csvread(strcat('../data/', chip_name,'-x.csv'), 9, 0);
+node(:, 3) = [];
+x = csvread(strcat('../data/', chip_name,'-x.csv'), 9, 2);
+y = csvread(strcat('../data/', chip_name,'-y.csv'), 9, 2);
 
 % calculate some limits
 total_polylines = numel(polylines);
 total_nodes = numel(node) / 2;
 sorted_node = sortrows([node (1:total_nodes)'], 1);
-geo_x_max = max(node(:, 1));
-geo_x_min = min(node(:, 1));
-geo_y_max = max(node(:, 2));
-geo_y_min = min(node(:, 2));
-resolution = max([geo_x_max geo_y_max]) / 2; % unit 10^(-6) s
+geo_x_max = max(node(:, 1))
+geo_x_min = min(node(:, 1))
+geo_y_max = max(node(:, 2))
+geo_y_min = min(node(:, 2))
 
-%initial_position = [geo_x_min + 10, ((geo_y_min + geo_y_max)/2-64)];
-initial_position = [geo_x_min + 10, ((geo_y_min + geo_y_max)/2-62)];
+fprintf("%lf %lf %lf %lf\n\n", geo_x_min, geo_x_max, geo_y_min, geo_y_max);
+%initial_position = [geo_x_min + init_x_shift, geo_y_min + init_y_shift];
+%resolution = max([geo_x_max geo_y_max]) / 2; % unit 10^(-6) s
+initial_position = [geo_x_min + init_x_shift, ((geo_y_min + geo_y_max)/2) + init_y_shift];
 
 display(resolution);
 display(initial_position);
 
 trajectories = [];
-dPs = [10, 1];
-
 % simulation begin
-for i=1:2
+for i=1:length(dPs)
     dP = dPs(i);
     trajectory = [initial_position 0]; % initiate particle trajectory
  
     current_position = initial_position;
-    pre_vx = 0.1;
-    pre_vy = -0.1;
-    continue
-    while true
+    pre_vx = start_vx;
+    pre_vy = start_vy;
+    cnt = 0;
+    fprintf("Simulate particle with diameter = %f\n", dP)
+    while cnt < boundary_max_timestep
+        cnt = cnt + 1;
         covered_nodes = findCoveredNodes(dP, current_position, sorted_node, node);
         vx = getMean(covered_nodes, x) * alpha;
         vy = getMean(covered_nodes, y) * beta;
@@ -66,7 +59,10 @@ for i=1:2
         end
         % move to next step
         trajectory = [trajectory; fixed_position];
-        current_position = fixed_position(1 : 2)
+        current_position = fixed_position(1 : 2);
+
+        fprintf("Step %d: current_position = (%f, %f)\r", cnt, current_position(1), current_position(2))
+        %display( ["step = ", cnt , ": " , current_position]);
 
         pre_vx = vx;
         pre_vy = vy;
@@ -76,16 +72,39 @@ for i=1:2
             display('break: automatically terminated!')
             break;
         end
-        if current_position(1, 1) >= (geo_x_max * 0.05) 
+        if current_position(1, 1) >= (geo_x_max * boundary_x_ratio) 
             display('break: mannually terminated!')
+            break;
+        end
+
+        if cnt > boundary_max_timestep
+            display('break: > max_timestep = ' + boundary_max_timestep)
             break;
         end
     end
     
     trajectories{i} = trajectory;
 end
+fprintf("\n");
 
 
+%% Write output
+for i =1:length(dPs);
+  current_data = trajectories{i};
+
+  filename = strcat(output_folder, "/matlab/", chip_name, string(dPs(i)), ".txt");
+  fprintf("Output to %s\n", filename);
+  fprintf("# of position = %d\n", length(current_data));
+
+  fp = fopen(filename, "w");
+  fprintf(fp, "%d %f\n", length(current_data), dPs(i));
+  for i = 1:length(current_data);
+    fprintf(fp, "%f %f\n", current_data(i, 1), current_data(i, 2));
+  end
+  fclose(fp);
+end
+
+%exit
 %% plot begin
 display('ploting')
 
@@ -94,8 +113,8 @@ total = numel(polylines);
 figure(1)
 for i = 1: total
     lines = polylines{i, 1};
-    to = min(numel(lines(:, 2)), 49);
-    plot(lines(1:to,2), lines(1:to,3))
+    % to = min(numel(lines(:, 2)), 49);
+    plot(lines(:,2), lines(:,3))
     hold on
     clear('lines')
 end
@@ -104,7 +123,7 @@ end
 
 colors = ['k', 'g'];
 
-for i=1:2
+for i=1:length(dPs)
     trajectory = trajectories{i};
     dP = dPs(i);
     color = colors(i);
@@ -120,7 +139,6 @@ for i=1:2
         j = j + 10;
     end
 end
-
 
 %axis([0 1500 0 3000])
 axis equal
