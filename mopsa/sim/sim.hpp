@@ -4,6 +4,8 @@
 #include <mopsa/headerdef.hpp>
 #include <mopsa/chip/chip.hpp>
 #include <mopsa/sim/particle.hpp>
+#include <mopsa/util/reader.hpp>
+#include <vector>
 
 namespace mopsa
 {
@@ -13,44 +15,73 @@ class Simulate
 
 public:
 
-  struct Setting
+  struct Setting : public Reader
   {
     Setting() : 
+      Reader("%,;[]=\'\"", " \r\t\n"),
+
       time_resolution(1), 
       alpha(1), 
       beta(1.45), 
+
       init_position_shift(0, 0),
       init_v(0, 0),
+
       max_timestep(100000),
-      sim_boundary_x(0),
+      sim_boundary_x_ratio(0),
+
+      chip_name("chip_name"),
       output_folder("."),
-      chip_name("chip_name")
+
+      dump_debug_file(false)
     {}
 
+    // simulation parameter
     double time_resolution;
-
     double alpha, beta;
 
+    // particle information
     point init_position_shift;
     velocity init_v;
+    std::vector<double> dPs;
 
+    // boundary
     int max_timestep;
-    double sim_boundary_x;
+    double sim_boundary_x_ratio;
 
+    // dumping setting
+    std::string chip_name;
     std::filesystem::path output_folder;
 
-    std::string chip_name;
-
     std::set<int> debug_step;
+
+    bool dump_debug_file;
+
+  public:
+
+    bool read(const std::filesystem::path &path);
+
+    void dump(std::ostream &os);
+
+  private:
+
+    bool _is_comment_prefix() override;
+
+    std::string read_comment() override;
+
+    /* read string (braced by " or ' (e.g.,  "context" or 'context') ) */
+    bool read_string(std::string&) override;
   };
 
-  Simulate(Chip *chip, Particle * particle, Setting *setting);
+  Simulate(Chip *chip, Setting *setting);
 
   bool simulate();
 
 private:
 
-  velocity _cal_particle_velocity();
+  bool _simulate_low();
+
+  velocity _cal_particle_velocity(std::vector<int> *covered_nodes_id);
 
   point _apply_velocity(Particle *particle, const velocity & vel);
 
@@ -65,9 +96,9 @@ private:
 
   Chip *_chip;
 
-  Particle *_particle;
-
   Setting *_setting;
+
+  Particle *_particle;
 
   bool _debug_wall_effect;
 };

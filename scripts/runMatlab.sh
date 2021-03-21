@@ -2,5 +2,5 @@
 
 chip=${1}
 
-echo matlab -nodesktop -r "rehash toolboxcache; addpath('chip_simulation_setting'), setting_${chip}, SecondStepMain, quit"
-matlab -nodesktop -r "rehash toolboxcache; addpath('chip_simulation_setting'), setting_${chip}, SecondStepMain, quit"
+echo matlab -nodesktop -r "addpath('chip_simulation_setting'); rehash toolboxcache; setting_${chip}, SecondStepMain, quit"
+matlab -nodesktop -r "addpath('chip_simulation_setting'); rehash toolboxcache; setting_${chip}, SecondStepMain, quit"

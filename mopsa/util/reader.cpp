@@ -223,7 +223,7 @@ bool Reader::read_float(float &val) {
     //std::cout << "to " << val << std::endl;
   }
   catch(...) {
-    LOG(WARNING) << "Cannot convert \'" << token << "\' to . "
+    LOG(WARNING) << "Cannot convert \'" << token << "\' to float. "
       "Use 0.0 instead. In " << _filename << ":" << _line_no << '\n';
     val = 0.0;
     return false;

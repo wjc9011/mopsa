@@ -79,43 +79,56 @@ print("sim output folder", sim_path)
 (total_xs, total_ys) = process(design_path)
 
 import matplotlib as mpl
-mpl.rcParams['figure.dpi'] = 300
+# mpl.rcParams['figure.dpi'] = 300
+
+fig, (ax1, ax2) = plt.subplots(2)
+ax1.set_aspect(1)
+ax2.set_aspect(1)
 
 for xs, ys in zip(total_xs, total_ys):
-  plt.plot(xs, ys, linewidth=0.1)
+  ax1.plot(xs, ys, linewidth=0.3, color="black")
+  ax2.plot(xs, ys, linewidth=0.3, color="black")
 
 import os
-colors = ['red', 'blue', 'green', 'yellow']
-path_cnt = 0
-for file in os.listdir(sim_path + "/matlab/."):
-  path = sim_path + "/matlab/" + file
+colors = ['red', 'blue', 'green', 'yellow', 'purple', 'pink']
+color_id = 0
+dim_color_map = dict()
+
+for file in os.listdir(sim_path):
+  path = sim_path + '/' + file
   if path.endswith("txt") == False: continue
+  if file.startswith("matlab") == False: continue
   print("Path:", path)
   data, dim = open_sim_result(path)
-  print("# of position = %d, dim = %d" %(len(data), dim))
 
-  color = colors[path_cnt]
-  for i in range(len(data)):
+  if dim not in dim_color_map.keys():
+    dim_color_map[dim] = colors[color_id]
+    color_id += 1
+  color = dim_color_map[dim]
+
+  print("# of position = %d, dim = %d, color = %s" %(len(data), dim, color))
+
+  for i in range(0, len(data), 20):
     circle = plt.Circle(data[i], dim/2.0, fill=False, linewidth=0.1, color=color)
-    plt.gca().add_patch(circle)
-  path_cnt += 1
+    ax1.add_patch(circle)
 
-# print("Plot\n")
-# plt.show()
-
-# path_cnt = 0
-for file in os.listdir(sim_path + "/cpp/."):
-  path = sim_path + "/cpp/" + file
+for file in os.listdir(sim_path):
+  path = sim_path + "/" + file
   if path.endswith("txt") == False: continue
+  if file.startswith("cpp") == False: continue
   print("Path:", path)
   data, dim = open_sim_result(path)
-  print("# of position = %d, dim = %d" %(len(data), dim))
 
-  color = colors[path_cnt]
-  for i in range(len(data)):
+  if dim not in dim_color_map.keys():
+    dim_color_map[dim] = colors[color_id]
+    color_id += 1
+  color = dim_color_map[dim]
+
+  print("# of position = %d, dim = %d, color = %s" %(len(data), dim, color))
+
+  for i in range(0, len(data), 20):
     circle = plt.Circle(data[i], dim/2.0, fill=False, linewidth=0.1, color=color)
-    plt.gca().add_patch(circle)
-  path_cnt += 1
+    ax2.add_patch(circle)
 
 print("Plot\n")
 plt.show()

@@ -31,13 +31,20 @@ trajectories = [];
 % simulation begin
 for i=1:length(dPs)
     dP = dPs(i);
+    fprintf("Simulate particle with diameter = %f\n", dP)
+
     trajectory = [initial_position 0]; % initiate particle trajectory
  
     current_position = initial_position;
     pre_vx = start_vx;
     pre_vy = start_vy;
     cnt = 0;
-    fprintf("Simulate particle with diameter = %f\n", dP)
+    if dump_debug_file == 1
+      debug_filename = strcat("mdebug_", chip_name, "_", num2str(dP), '.log') 
+      fp_debug = fopen(debug_filename, "w");
+      fprintf("Dump debug file to %s\n", debug_filename);
+    end
+
     while cnt < boundary_max_timestep
         cnt = cnt + 1;
         covered_nodes = findCoveredNodes(dP, current_position, sorted_node, node);
@@ -47,6 +54,19 @@ for i=1:length(dPs)
         if (vx == 0) && (vy == 0) % in case of math failure
             vx = pre_vx;
             vy = pre_vy;
+        end
+
+        if dump_debug_file == 1
+          fprintf(fp_debug, "TimeStep: %d\n", cnt);
+          fprintf(fp_debug, "Current position: %f %f\n", ...
+            current_position(1), current_position(2));
+          fprintf(fp_debug, "Current velocity: %f %f\n", vx, vy);
+          fprintf(fp_debug, "covered nodes:\n");
+          for j = 1:length(covered_nodes);
+            fprintf(fp_debug, "%f %f\n", ...
+              node(covered_nodes(j), 1), node(covered_nodes(j), 2));
+              %covered_nodes(j), covered_nodes(j));
+          end
         end
 
         % determine if touching walls
@@ -81,28 +101,45 @@ for i=1:length(dPs)
             display('break: > max_timestep = ' + boundary_max_timestep)
             break;
         end
+    end % while
+
+    if dump_debug_file == 1
+      fclose(fp_debug)
     end
     
     trajectories{i} = trajectory;
+
+    % write output to file
+    filename = strcat(output_folder, "matlab_", chip_name, "_", string(dP), ".txt");
+    fprintf("Output to %s\n", filename);
+    fprintf("# of position = %d\n", length(trajectory));
+  
+    fp = fopen(filename, "w");
+    fprintf(fp, "%d %f\n", length(trajectory), dP);
+    for j = 1:length(trajectory);
+      fprintf(fp, "%f %f\n", trajectory(j, 1), trajectory(j, 2));
+    end
+    fclose(fp);
 end
+
 fprintf("\n");
+exit
 
-
-%% Write output
-for i =1:length(dPs);
-  current_data = trajectories{i};
-
-  filename = strcat(output_folder, "/matlab/", chip_name, string(dPs(i)), ".txt");
-  fprintf("Output to %s\n", filename);
-  fprintf("# of position = %d\n", length(current_data));
-
-  fp = fopen(filename, "w");
-  fprintf(fp, "%d %f\n", length(current_data), dPs(i));
-  for i = 1:length(current_data);
-    fprintf(fp, "%f %f\n", current_data(i, 1), current_data(i, 2));
-  end
-  fclose(fp);
-end
+%%% Write output
+%for i =1:length(dPs);
+%  current_data = trajectories{i};
+%
+%  filename = strcat(output_folder, "matlab_", chip_name, "_", string(dPs(i)), ".txt");
+%  fprintf("Output to %s\n", filename);
+%  fprintf("# of position = %d\n", length(current_data));
+%
+%  fp = fopen(filename, "w");
+%  fprintf(fp, "%d %f\n", length(current_data), dPs(i));
+%  for i = 1:length(current_data);
+%    fprintf(fp, "%f %f\n", current_data(i, 1), current_data(i, 2));
+%  end
+%  fclose(fp);
+%end
 
 %exit
 %% plot begin

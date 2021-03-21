@@ -1,4 +1,5 @@
 #include <mopsa/geometry/point.hpp>
+#include <mopsa/util/util_funcs.h>
 
 #include <boost/geometry/geometry.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
@@ -23,8 +24,8 @@ operator!=(const point &p1, const point &p2)
 std::string 
 to_string(const point &point)
 {
-  return "(" + std::to_string(point.x()) + ", " 
-    + std::to_string(point.y()) + ")";
+  return "(" + to_string(point.x()) + ", " 
+    + to_string(point.y()) + ")";
 }
 
 point

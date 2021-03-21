@@ -72,7 +72,7 @@ for j = 1: total_polylines
       fprintf("direction = (%.6f, %.6f)\n", direction(end, 1), direction(end, 2));
       fprintf("particlePosition = (%.6f, %.6f)\n", particlePosition(end, 1), particlePosition(end, 2));
       fprintf("fixed_position = (%.6f, %.6f)\n", fixed_position(end, 1), fixed_position(end, 2));
-      pause
+      %pause
             tmp_res = [fixed_position 1]; % covered
 %             plotCircle(fixed_position, particleRadius, '.')
             break
