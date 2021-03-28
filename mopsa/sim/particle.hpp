@@ -36,6 +36,7 @@ private:
   point _current_coord;
 
   double _diameter;
+  double _radius;
 
   int _num_points; // # of points to describe the circle
   polygon _polygon;
@@ -60,7 +61,7 @@ Particle::diameter() const
 inline double 
 Particle::radius() const
 {
-  return _diameter * 0.5;
+  return _radius;
 }
 
 }

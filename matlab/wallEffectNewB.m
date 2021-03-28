@@ -59,19 +59,19 @@ for j = 1: total_polylines
                 break
 
             end
-      fprintf("\n");
-      fprintf("len = %d\n", length(xp));
-      fprintf("xp = %f %f %f\n", xp(1), xp(2), xp(3));
-      fprintf("yp = %f %f %f\n", yp(1), yp(2), yp(3));
-      fprintf("r = %f\n", particleRadius);
-      fprintf("Alpha %f %f %f\n", alpha(1), alpha(2), alpha(3));
-      fprintf("Count = %d\n", count);
-      fprintf("covered_points begin = (%.6f, %.6f)\n", covered_points(1, 1), covered_points(1, 2));
-      fprintf("covered_points end = (%.6f, %.6f)\n", covered_points(end, 1), covered_points(end, 2));
-      fprintf("middle_point = (%.6f, %.6f)\n", middle_point(end, 1), middle_point(end, 2));
-      fprintf("direction = (%.6f, %.6f)\n", direction(end, 1), direction(end, 2));
-      fprintf("particlePosition = (%.6f, %.6f)\n", particlePosition(end, 1), particlePosition(end, 2));
-      fprintf("fixed_position = (%.6f, %.6f)\n", fixed_position(end, 1), fixed_position(end, 2));
+      %fprintf("\n");
+      %fprintf("len = %d\n", length(xp));
+      %fprintf("xp = %f %f %f\n", xp(1), xp(2), xp(3));
+      %fprintf("yp = %f %f %f\n", yp(1), yp(2), yp(3));
+      %fprintf("r = %f\n", particleRadius);
+      %fprintf("Alpha %f %f %f\n", alpha(1), alpha(2), alpha(3));
+      %fprintf("Count = %d\n", count);
+      %fprintf("covered_points begin = (%.6f, %.6f)\n", covered_points(1, 1), covered_points(1, 2));
+      %fprintf("covered_points end = (%.6f, %.6f)\n", covered_points(end, 1), covered_points(end, 2));
+      %fprintf("middle_point = (%.6f, %.6f)\n", middle_point(end, 1), middle_point(end, 2));
+      %fprintf("direction = (%.6f, %.6f)\n", direction(end, 1), direction(end, 2));
+      %fprintf("particlePosition = (%.6f, %.6f)\n", particlePosition(end, 1), particlePosition(end, 2));
+      %fprintf("fixed_position = (%.6f, %.6f)\n", fixed_position(end, 1), fixed_position(end, 2));
       %pause
             tmp_res = [fixed_position 1]; % covered
 %             plotCircle(fixed_position, particleRadius, '.')

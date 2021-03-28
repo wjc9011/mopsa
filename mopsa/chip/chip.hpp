@@ -25,6 +25,10 @@ public:
 
   inline const Design & design() const;
 
+  inline double width() const;
+
+  inline double height() const;
+
 private:
 
   Design _design;
@@ -45,6 +49,18 @@ inline const Design &
 Chip::design() const
 {
   return _design;
+}
+
+inline double 
+Chip::width() const
+{
+  return _design.width();
+}
+
+inline double 
+Chip::height()  const
+{
+  return _design.height();
 }
 
 

@@ -98,6 +98,9 @@ Design::load_design(const std::filesystem::path &design_path)
   _width  = xs.back() - xs.front();
   _height = ys.back() - ys.front();
 
+  LOG(INFO) << "Design starts from " << to_string(_upper_left) << " to " 
+    << to_string(_lower_right) << '\n';
+
   return true;
 }
 

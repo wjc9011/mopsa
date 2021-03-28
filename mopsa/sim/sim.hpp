@@ -3,8 +3,9 @@
 
 #include <mopsa/headerdef.hpp>
 #include <mopsa/chip/chip.hpp>
-#include <mopsa/sim/particle.hpp>
 #include <mopsa/util/reader.hpp>
+#include <mopsa/sim/particle.hpp>
+#include <mopsa/sim/sim_flowgrid.hpp>
 #include <vector>
 
 namespace mopsa
@@ -33,12 +34,14 @@ public:
       chip_name("chip_name"),
       output_folder("."),
 
-      dump_debug_file(false)
+      dump_debug_file(false),
+      use_sim_gridflow(true)
     {}
 
     // simulation parameter
     double time_resolution;
-    double alpha, beta;
+    double alpha;
+    double beta;
 
     // particle information
     point init_position_shift;
@@ -56,6 +59,8 @@ public:
     std::set<int> debug_step;
 
     bool dump_debug_file;
+
+    bool use_sim_gridflow;
 
   public:
 
@@ -75,9 +80,13 @@ public:
 
   Simulate(Chip *chip, Setting *setting);
 
+  ~Simulate();
+
   bool simulate();
 
 private:
+
+  bool _build_flow_grids();
 
   bool _simulate_low();
 
@@ -99,6 +108,8 @@ private:
   Setting *_setting;
 
   Particle *_particle;
+
+  SimFlowGrid *_flowgrids;
 
   bool _debug_wall_effect;
 };

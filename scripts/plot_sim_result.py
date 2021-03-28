@@ -85,6 +85,9 @@ fig, (ax1, ax2) = plt.subplots(2)
 ax1.set_aspect(1)
 ax2.set_aspect(1)
 
+ax1.set_title("Matlab")
+ax2.set_title("Cpp")
+
 for xs, ys in zip(total_xs, total_ys):
   ax1.plot(xs, ys, linewidth=0.3, color="black")
   ax2.plot(xs, ys, linewidth=0.3, color="black")

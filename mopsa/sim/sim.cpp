@@ -12,6 +12,7 @@
 #include <iostream>
 #include <string>
 #include <cstdio>
+#include <thread>
 
 namespace mopsa
 {
@@ -176,6 +177,13 @@ Simulate::Setting::read(const std::filesystem::path &path)
       _expect_token(read_token(), ";");
     }
 
+    else if(token == "use_sim_gridflow") {
+      _expect_token(read_token(), "=");
+      std::string val = read_token();
+      use_sim_gridflow = (val=="1" or val=="true");
+      _expect_token(read_token(), ";");
+    }
+
     else {
       LOG(WARNING) << "Unknown variable: " << token << '\n';
       while(!_is_end()) {
@@ -277,6 +285,8 @@ Simulate::Setting::dump(std::ostream &os)
   os << "beta: " << beta << '\n';
   os << "-------\n";
   os << "Dump debug file: " << dump_debug_file << '\n';
+  os << "Use Grid flow: " << use_sim_gridflow << '\n';
+  os << "*************************\n";
   os << '\n';
 }
 
@@ -290,12 +300,28 @@ Simulate::Simulate(
     _chip(chip)
   , _setting(setting)
   , _particle(nullptr)
+  , _flowgrids(nullptr)
   , _debug_wall_effect(false)
 {
-
-  if(std::filesystem::exists(_setting->output_folder)) {
+  if(!std::filesystem::exists(_setting->output_folder)) {
     std::filesystem::create_directories(_setting->output_folder);
   }
+}
+
+Simulate::~Simulate()
+{
+  delete _flowgrids;
+}
+
+bool 
+Simulate::_build_flow_grids()
+{
+  double max_dp = 0;
+  for(const auto & val : _setting->dPs) max_dp = std::max(max_dp, val);
+
+  _flowgrids = new SimFlowGrid(_chip, max_dp);
+
+  return _flowgrids->build();
 }
 
 bool 
@@ -303,6 +329,8 @@ Simulate::simulate()
 {
   LOG(INFO) << "====== Start simulating " << _setting->dPs.size() 
     << " different diameter. ======\n";
+
+  if(_setting->use_sim_gridflow and !_build_flow_grids()) return false;
 
   bool ok = true;
   for(const auto &dp : _setting->dPs) {
@@ -422,14 +450,19 @@ Simulate::_simulate_low()
     }
   }
 
-  if(dump_debug_file) fclose(debug_fp);
+  if(dump_debug_file) {
+    fclose(debug_fp);
+    delete covered_nodes_id;
+  }
+
 
   LOG(INFO) << "Particle ends at " << to_string(_particle->coord()) << " "
     << " diameter = " << _particle->diameter() << '\n';
 
   // Dump output
   std::filesystem::path output_path = _setting->output_folder
-    / ("cpp_" + _setting->chip_name + "_" + to_string(_particle->diameter())+ ".txt");
+    / ("cpp_" + _setting->chip_name + "_" 
+        + to_string(_particle->diameter())+ ".txt");
 
   _dump(trajectory, output_path);
 
@@ -441,21 +474,101 @@ Simulate::_cal_particle_velocity(std::vector<int> *covered_nodes_id)
 {
   velocity vel(0, 0);
   int cnt = 0;
+  std::vector<FlowBlock*> blocks;
+  int nodes_sum = 0;
+
+  constexpr int MAX_SUPPORT_THREAD = 16;
+  static    int MAX_THREAD = std::thread::hardware_concurrency();
 
   if(covered_nodes_id) covered_nodes_id->clear();
 
-  //#pragma omp parallel for
-  for(size_t i = 0; i<_chip->flow().nodes().size(); i++) {
-    const auto & node = _chip->flow().nodes()[i];
-    bool covered = _particle->cover(node.coord);
+  if(_setting->use_sim_gridflow) {
+    _flowgrids->get_adjacent_blocks(_particle, blocks);
 
-    if(covered) {
-      #pragma omp critical
-      {
+    for(size_t i = 0; i<blocks.size(); i++) 
+      nodes_sum += blocks[i]->nodes.size();
+
+    static int      cnt_t[MAX_SUPPORT_THREAD];
+    static velocity vel_t[MAX_SUPPORT_THREAD];
+
+    int used_thread_num = std::min(MAX_THREAD, MAX_SUPPORT_THREAD);
+    if(nodes_sum <= 400) used_thread_num = 1;
+
+    //else if(nodes_sum <= 1000) used_thread_num = 2;
+    //else if(nodes_sum <= 2000) used_thread_num = 4;
+    //else if(nodes_sum <= 4000) used_thread_num = 8;
+    //else if(nodes_sum <= 8000) used_thread_num = 16;
+
+    omp_set_num_threads(used_thread_num);
+
+    for(int i=0; i<used_thread_num; i++) {
+      cnt_t[i]    = 0;
+      vel_t[i].vx = 0;
+      vel_t[i].vy = 0;
+    }
+
+    #pragma omp parallel for
+    for(int i=0; i<nodes_sum; i++) {
+
+      size_t cur_i = i;
+      int node_id  = -1;
+      int tid      = omp_get_thread_num();
+
+      for(size_t j = 0; j<blocks.size(); j++) {
+        if(blocks[j]->nodes.size() == 0) continue;
+        if(blocks[j]->nodes.size() <= cur_i)  {
+          cur_i -= blocks[j]->nodes.size();
+        }
+        else {
+          node_id = blocks[j]->nodes[cur_i];
+          break;
+        }
+      }
+
+      const auto & node = _chip->flow().nodes()[node_id];
+      bool covered      = _particle->cover(node.coord);
+
+      if(covered) {
         if(covered_nodes_id) covered_nodes_id->push_back(i);
-        cnt += 1;
-        vel.vx += node.vx;
-        vel.vy += node.vy;
+        cnt_t[tid]    += 1;
+        vel_t[tid].vx += node.vx;
+        vel_t[tid].vy += node.vy;
+      }
+    }
+
+    for(int i=0; i<used_thread_num; i++) {
+      cnt    += cnt_t[i];
+      vel.vx += vel_t[i].vx;
+      vel.vy += vel_t[i].vy;
+    }
+
+    //Logger::add_record(std::to_string(_particle->diameter()), 
+        //"iterate nodes", nodes_sum);
+
+    //Logger::add_record("Veolocity", 
+      //to_string(_particle->diameter()) + " # of blocks " 
+        //+ std::to_string(blocks.size()),  1
+    //);
+
+    //Logger::add_record("Veolocity", 
+      //to_string(_particle->diameter()) + " total nodes iterations", nodes_sum
+    //);
+  }
+  else {
+
+    #pragma omp parallel for
+    for(size_t i = 0; i<_chip->flow().nodes().size(); i++) {
+      const auto & node = _chip->flow().nodes()[i];
+      bool covered = _particle->cover(node.coord);
+
+      if(covered) {
+        #pragma omp critical
+        {
+          if(covered_nodes_id) covered_nodes_id->push_back(i);
+          cnt += 1;
+          vel.vx += node.vx;
+          vel.vy += node.vy;
+        }
       }
     }
   }
@@ -464,17 +577,75 @@ Simulate::_cal_particle_velocity(std::vector<int> *covered_nodes_id)
     vel.vx /= cnt;
     vel.vy /= cnt;
   }
-  else {
-    double distance  = 1e10;
-    int node_id = 0;
-    for(size_t i = 0; i<_chip->flow().nodes().size(); i++) {
-      const auto & node = _chip->flow().nodes()[i];
-      double dist = boost::geometry::distance(_particle->coord(), node.coord);
-      if(distance > dist) {
-        distance = dist;
-        node_id = i;
+  else { 
+    /* 
+     * if the particle doesn't cover any nodes, we will set the velocity 
+     * to the nodes the most cloest to particle. 
+     */
+    static double distance_t[MAX_SUPPORT_THREAD]  = {0};
+    static int    node_id_t[MAX_SUPPORT_THREAD];
+
+    int used_thread_num = std::min(MAX_THREAD, MAX_SUPPORT_THREAD);
+    if(_setting->use_sim_gridflow) {
+      if(nodes_sum <= 400) used_thread_num = 1;
+    }
+    omp_set_num_threads(used_thread_num);
+
+    for(int i=0; i<used_thread_num; i++) {
+      distance_t[i] = 1e10;
+      node_id_t[i] = 0;
+    }
+
+    if(_setting->use_sim_gridflow) {
+      #pragma omp parallel for
+      for(int i=0; i<nodes_sum; i++) {
+        size_t cur_i = i;
+        int node_id  = -1;
+        int tid      = omp_get_thread_num();
+
+        for(size_t j = 0; j<blocks.size(); j++) {
+          if(blocks[j]->nodes.size() == 0) continue;
+          if(blocks[j]->nodes.size() <= cur_i)  {
+            cur_i -= blocks[j]->nodes.size();
+          }
+          else {
+            node_id = blocks[j]->nodes[cur_i];
+            break;
+          }
+        }
+        const auto & node = _chip->flow().nodes()[node_id];
+
+        double dist = boost::geometry::distance(_particle->coord(), node.coord);
+        if(distance_t[tid] > dist) {
+          distance_t[tid] = dist;
+          node_id_t[tid]  = node_id;
+        }
       }
     }
+    else {
+      #pragma omp parallel for
+      for(size_t i = 0; i<_chip->flow().nodes().size(); i++) {
+        int tid = omp_get_thread_num();
+
+        const auto & node = _chip->flow().nodes()[i];
+        double dist = boost::geometry::distance(_particle->coord(), node.coord);
+        if(distance_t[tid] > dist) {
+          distance_t[tid] = dist;
+          node_id_t[tid]  = i;
+        }
+      }
+    }
+
+    // Merge results
+    int node_id = -1;
+    double distance = 1e10;
+    for(int i=0; i<used_thread_num; i++) {
+      if(distance_t[i] < distance) {
+        distance = distance_t[i];
+        node_id  = node_id_t[i];
+      }
+    }
+
     if(covered_nodes_id)  covered_nodes_id->push_back(node_id);
     vel.vx = _chip->flow().nodes()[node_id].vx;
     vel.vy = _chip->flow().nodes()[node_id].vy;
@@ -504,7 +675,32 @@ Simulate::_apply_well_effect(Particle *particle)
 {
   point coord = particle->coord();
 
-  for(const auto & obst : _chip->design().obstacles()) {
+  std::set<int> obstacles_cand;
+
+  if(_setting->use_sim_gridflow) {
+    std::vector<FlowBlock*> blocks;
+    _flowgrids->get_adjacent_blocks(_particle, blocks);
+
+    for(size_t i=0; i<blocks.size(); i++) {
+      for(const auto & id : blocks[i]->obstacles) {
+        obstacles_cand.insert(id);
+      }
+    }
+
+    //Logger::add_record("Wall Effect", 
+      //to_string(_particle->diameter()) + " total obstacles check", 
+      //obstacles_cand.size()
+    //);
+  }
+  else {
+    for(size_t i=0; i<_chip->design().obstacles().size(); i++) {
+      obstacles_cand.insert(i);
+    }
+  }
+
+  for(const auto & id : obstacles_cand) {
+
+    const auto & obst = _chip->design().obstacles()[id];
     std::vector<point> res;
     if(particle->overlap_obstacle(obst, res, _debug_wall_effect)) {
 

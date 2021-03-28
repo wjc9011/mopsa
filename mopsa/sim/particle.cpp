@@ -21,15 +21,14 @@ Particle::Particle(
 ) 
   : _current_coord(coord)
   , _diameter(diameter)
+  , _radius(diameter * 0.5)
   ,_num_points(num_points)
 {
-
-  double r = radius();
   for(int i=0; i<_num_points; i++) {
     double degree = i * (2.0*boost::math::constants::pi<double>())/_num_points;
 
-    double x = std::cos(degree) * r;
-    double y = std::sin(degree) * r;
+    double x = std::cos(degree) * _radius;
+    double y = std::sin(degree) * _radius;
     _polygon.push_back({x, y});
   }
   _polygon.push_back( _polygon.startpoint() );
@@ -47,22 +46,18 @@ void
 Particle::update_coord(const point & new_coord)
 {
   _current_coord = new_coord;
-  //point adjust = point_minus(new_coord, _current_coord);
-  //for(auto & p : _polygon.outer()) {
-    //p.x( p.x() + adjust.x() );
-    //p = point_add(p, adjust);
-  //}
 }
 
 bool 
 Particle::cover(const point & node)
 {
-  double dist = boost::geometry::distance(_current_coord, node);
-  if(dist <= _diameter/2) {
-    return true;
-  }
+  if(  (node.x() - _current_coord.x() > _radius) 
+    || (node.y() - _current_coord.y() > _radius))
+    return false;
 
-  return false;
+  double dist = boost::geometry::distance(_current_coord, node);
+
+  return dist <= _radius;
 }
 
 bool 

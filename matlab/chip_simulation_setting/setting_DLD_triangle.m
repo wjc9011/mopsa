@@ -6,7 +6,7 @@ init_y_shift = 20; % shift from middle of y; that is init_y = (min_y+max_y)/2 + 
 
 resolution = 10;
 
-dPs = [1, 10, 5];
+dPs = [1, 5, 10];
 
 boundary_x_ratio = 0.95;
 boundary_max_timestep = 100000;
@@ -19,4 +19,4 @@ start_vy = -0.1;
 
 output_folder = "../sim_output/DLD_triangle/";
 
-dump_debug_file = 1;
+dump_debug_file = 0;
