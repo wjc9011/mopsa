@@ -280,7 +280,7 @@ Simulate::Setting::dump(std::ostream &os)
   for(const auto& val : dPs) os << val << " "; 
   os << '\n';
   os << "-------\n";
-  os << "Time resoltion: " << time_resolution << '\n';
+  os << "Time resolution: " << time_resolution << '\n';
   os << "alpha: " << alpha << '\n';
   os << "beta: " << beta << '\n';
   os << "-------\n";

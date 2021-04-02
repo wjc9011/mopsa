@@ -46,3 +46,5 @@
 *.pdf binary
 
 *.csv binary
+
+*.png binary

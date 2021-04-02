@@ -11,8 +11,8 @@ cd $cwd
 if [ "$setting" = "" ]
 then
   echo  ../bin/main ../design_geometry_plain/$chip.txt  ../data/$chip-x.csv ../data/$chip-y.csv ../matlab/chip_simulation_setting/setting_$chip.m
-  ../bin/main ../design_geometry_plain/$chip.txt ../data/$chip-x.csv ../data/$chip-y.csv ../matlab/chip_simulation_setting/setting_$chip.m
+  time ../bin/main ../design_geometry_plain/$chip.txt ../data/$chip-x.csv ../data/$chip-y.csv ../matlab/chip_simulation_setting/setting_$chip.m
 else
   echo  ../bin/main ../design_geometry_plain/$chip.txt  ../data/$chip-x.csv ../data/$chip-y.csv $settting
-  ../bin/main ../design_geometry_plain/$chip.txt ../data/$chip-x.csv ../data/$chip-y.csv $setting
+  time ../bin/main ../design_geometry_plain/$chip.txt ../data/$chip-x.csv ../data/$chip-y.csv $setting
 fi
