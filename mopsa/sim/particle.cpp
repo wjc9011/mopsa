@@ -102,10 +102,11 @@ Particle::overlap_obstacle(
     std::vector<std::pair<int, point>> myres;
     res.clear();
     if(obstacle.get_polygon().startpoint() != 
-  obstacle.get_polygon().endpoint()) return false;
+  obstacle.get_polygon().endpoint()) 
+      return false;
 
     #pragma omp parallel for
-    for(size_t i=0; i<_polygon.size(); i++) {
+    for(int i=0; i<(int)_polygon.size(); i++) {
       point x = mopsa::point_add(_polygon.outer()[i], _current_coord);
 
       bool within = false;
@@ -126,7 +127,8 @@ Particle::overlap_obstacle(
 
     for(const auto & data : myres) res.emplace_back(data.second);
 
-    //double dist = boost::geometry::distance(_current_coord, obstacle.get_polygon().startpoint());
+    //double dist = boost::geometry::distance(_current_coord, 
+    //obstacle.get_polygon().startpoint());
 
     //if(dist <= 20) debug = true;
     //else debug = false;

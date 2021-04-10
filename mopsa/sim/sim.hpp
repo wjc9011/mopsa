@@ -35,7 +35,8 @@ public:
       output_folder("."),
 
       dump_debug_file(false),
-      use_sim_gridflow(true)
+      use_sim_gridflow(true),
+      use_design_obstacles(true)
     {}
 
     // simulation parameter
@@ -62,6 +63,7 @@ public:
 
     bool use_sim_gridflow;
 
+    bool use_design_obstacles;
   public:
 
     bool read(const std::filesystem::path &path);
@@ -95,6 +97,18 @@ private:
   point _apply_velocity(Particle *particle, const velocity & vel);
 
   point _apply_well_effect(Particle *particle);
+
+  void _apply_well_effect_low(
+    Particle *particle,
+    std::pair<point, point> &two_points,
+    double &portion
+  );
+
+  void _apply_well_effect_low_wo_design(
+    Particle *particle,
+    std::pair<point, point> &two_points,
+    double &portion
+  );
 
   bool _is_debug_step(int cur_step);
 

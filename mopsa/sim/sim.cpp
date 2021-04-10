@@ -184,6 +184,13 @@ Simulate::Setting::read(const std::filesystem::path &path)
       _expect_token(read_token(), ";");
     }
 
+    else if(token == "use_design_obstacles") {
+      _expect_token(read_token(), "=");
+      std::string val = read_token();
+      use_design_obstacles = (val=="1" or val=="true");
+      _expect_token(read_token(), ";");
+    }
+
     else {
       LOG(WARNING) << "Unknown variable: " << token << '\n';
       while(!_is_end()) {
@@ -285,7 +292,8 @@ Simulate::Setting::dump(std::ostream &os)
   os << "beta: " << beta << '\n';
   os << "-------\n";
   os << "Dump debug file: " << dump_debug_file << '\n';
-  os << "Use Grid flow: " << use_sim_gridflow << '\n';
+  os << "Use Grid flow: "   << use_sim_gridflow << '\n';
+  os << "Use Design Obstacles: " << use_design_obstacles << '\n';
   os << "*************************\n";
   os << '\n';
 }
@@ -321,7 +329,7 @@ Simulate::_build_flow_grids()
 
   _flowgrids = new SimFlowGrid(_chip, max_dp);
 
-  return _flowgrids->build();
+  return _flowgrids->build(_setting->use_design_obstacles);
 }
 
 bool 
@@ -474,7 +482,7 @@ Simulate::_cal_particle_velocity(std::vector<int> *covered_nodes_id)
 {
   velocity vel(0, 0);
   int cnt = 0;
-  std::vector<FlowBlock*> blocks;
+  FlowBlockGroup block_group;
   int nodes_sum = 0;
 
   constexpr int MAX_SUPPORT_THREAD = 16;
@@ -483,10 +491,9 @@ Simulate::_cal_particle_velocity(std::vector<int> *covered_nodes_id)
   if(covered_nodes_id) covered_nodes_id->clear();
 
   if(_setting->use_sim_gridflow) {
-    _flowgrids->get_adjacent_blocks(_particle, blocks);
+    _flowgrids->get_adjacent_blocks(_particle, block_group);
 
-    for(size_t i = 0; i<blocks.size(); i++) 
-      nodes_sum += blocks[i]->nodes.size();
+    nodes_sum = block_group.size(FlowBlock::Type::flow_node);
 
     static int      cnt_t[MAX_SUPPORT_THREAD];
     static velocity vel_t[MAX_SUPPORT_THREAD];
@@ -509,21 +516,8 @@ Simulate::_cal_particle_velocity(std::vector<int> *covered_nodes_id)
 
     #pragma omp parallel for
     for(int i=0; i<nodes_sum; i++) {
-
-      size_t cur_i = i;
-      int node_id  = -1;
       int tid      = omp_get_thread_num();
-
-      for(size_t j = 0; j<blocks.size(); j++) {
-        if(blocks[j]->nodes.size() == 0) continue;
-        if(blocks[j]->nodes.size() <= cur_i)  {
-          cur_i -= blocks[j]->nodes.size();
-        }
-        else {
-          node_id = blocks[j]->nodes[cur_i];
-          break;
-        }
-      }
+      int node_id  = block_group.get(FlowBlock::Type::flow_node, i);
 
       const auto & node = _chip->flow().nodes()[node_id];
       bool covered      = _particle->cover(node.coord);
@@ -599,20 +593,10 @@ Simulate::_cal_particle_velocity(std::vector<int> *covered_nodes_id)
     if(_setting->use_sim_gridflow) {
       #pragma omp parallel for
       for(int i=0; i<nodes_sum; i++) {
-        size_t cur_i = i;
-        int node_id  = -1;
+        
         int tid      = omp_get_thread_num();
+        int node_id  = block_group.get(FlowBlock::Type::flow_node, i);
 
-        for(size_t j = 0; j<blocks.size(); j++) {
-          if(blocks[j]->nodes.size() == 0) continue;
-          if(blocks[j]->nodes.size() <= cur_i)  {
-            cur_i -= blocks[j]->nodes.size();
-          }
-          else {
-            node_id = blocks[j]->nodes[cur_i];
-            break;
-          }
-        }
         const auto & node = _chip->flow().nodes()[node_id];
 
         double dist = boost::geometry::distance(_particle->coord(), node.coord);
@@ -673,24 +657,60 @@ Simulate::_apply_velocity(
 point 
 Simulate::_apply_well_effect(Particle *particle)
 {
-  point coord = particle->coord();
+  std::pair<point, point> two_points;
+  double                  portion = 0;
+  point                   coord = particle->coord();
 
+  if(_setting->use_design_obstacles) {
+    _apply_well_effect_low(particle, two_points, portion);
+  }
+  else {
+    _apply_well_effect_low_wo_design(particle, two_points, portion);
+  }
+
+  auto [A, B] = two_points;
+
+  point middle = mopsa::point_scaling(mopsa::point_add(A, B), 0.5);
+
+  point direction = mopsa::point_minus(particle->coord(), middle);
+  point dist = mopsa::point_scaling(direction, portion * _particle->radius());
+
+  point new_position = mopsa::point_add(particle->coord(), dist);
+  particle->update_coord(new_position);
+
+  if(_debug_wall_effect) {
+    std::cout << "!!!!" << portion << std::endl;
+    std::cout << "Cov front = " << to_string(A) << 
+      " back = " << to_string(B) << std::endl;
+    std::cout << "Middle = " << to_string(middle) << std::endl;
+    std::cout << "Direction = " << to_string(direction) << std::endl;
+
+    std::cout << to_string(coord) << " ===> " 
+      << to_string(new_position) << std::endl;
+    int a;
+    std::cin >> a;
+  }
+
+  return new_position;
+}
+
+
+void
+Simulate::_apply_well_effect_low(
+  Particle *particle,
+  std::pair<point, point> &two_points,
+  double &portion
+)
+{
   std::set<int> obstacles_cand;
 
   if(_setting->use_sim_gridflow) {
-    std::vector<FlowBlock*> blocks;
-    _flowgrids->get_adjacent_blocks(_particle, blocks);
+    FlowBlockGroup group_blocks;
+    _flowgrids->get_adjacent_blocks(_particle, group_blocks);
 
-    for(size_t i=0; i<blocks.size(); i++) {
-      for(const auto & id : blocks[i]->obstacles) {
-        obstacles_cand.insert(id);
-      }
+    for(int i=0; i<group_blocks.size(FlowBlock::Type::obstacle); i++) {
+      obstacles_cand.insert(group_blocks.get(FlowBlock::Type::obstacle, i));
     }
-
-    //Logger::add_record("Wall Effect", 
-      //to_string(_particle->diameter()) + " total obstacles check", 
-      //obstacles_cand.size()
-    //);
   }
   else {
     for(size_t i=0; i<_chip->design().obstacles().size(); i++) {
@@ -704,33 +724,21 @@ Simulate::_apply_well_effect(Particle *particle)
     std::vector<point> res;
     if(particle->overlap_obstacle(obst, res, _debug_wall_effect)) {
 
-      point middle = mopsa::point_add(res.front(), res.back());
-      middle = mopsa::point_scaling(middle, 0.5);
-
-      point direction = mopsa::point_minus(particle->coord(), middle);
-      point dist = mopsa::point_scaling(direction, 
-          (res.size()/201.0) * _particle->radius());
-
-      point new_position = mopsa::point_add(particle->coord(), dist);
-
-      if(_debug_wall_effect) {
-        std::cout << "!!!!" << res.size() << std::endl;
-        std::cout << "Cov front = " << to_string(res.front()) << 
-          " back = " << to_string(res.back()) << std::endl;
-        std::cout << "Middle = " << to_string(middle) << std::endl;
-        std::cout << "Direction = " << to_string(direction) << std::endl;
-
-        std::cout << to_string(coord) << " ===> " 
-          << to_string(new_position) << std::endl;
-        int a;
-        std::cin >> a;
-      }
-      particle->update_coord(new_position);
-      return new_position;
+      two_points.first  = res.front();
+      two_points.second = res.back();
+      portion           = res.size() / 201;
+      return;
     }
   }
+}
 
-  return coord;
+void Simulate::_apply_well_effect_low_wo_design(
+  Particle *particle,
+  std::pair<point, point> &two_points,
+  double &portion
+)
+{
+
 }
 
 bool 

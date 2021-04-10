@@ -4,7 +4,7 @@ chip_name = 'DLD_triangle';
 init_x_shift = 15;
 init_y_shift = 20; % shift from middle of y; that is init_y = (min_y+max_y)/2 + init_y_shift
 
-resolution = 10;
+resolution = 1;
 
 dPs = [1, 5, 10];
 
