@@ -35,8 +35,14 @@ public:
       output_folder("."),
 
       dump_debug_file(false),
+
       use_sim_gridflow(true),
-      use_design_obstacles(true)
+
+      adv_wall_effect_enabled(true),
+      adv_wall_effect_collision_threshold(0.01),
+      adv_wall_effect_candidate_threshold(1),
+      adv_wall_effect_extra_shift(0.01),
+      debug_adv_wall_effect_consistency(false)
     {}
 
     // simulation parameter
@@ -63,7 +69,13 @@ public:
 
     bool use_sim_gridflow;
 
-    bool use_design_obstacles;
+    // advv wall effect
+    bool adv_wall_effect_enabled;
+    double adv_wall_effect_collision_threshold;
+    double adv_wall_effect_candidate_threshold;
+    double adv_wall_effect_extra_shift;
+    bool debug_adv_wall_effect_consistency;
+
   public:
 
     bool read(const std::filesystem::path &path);
@@ -96,19 +108,33 @@ private:
 
   point _apply_velocity(Particle *particle, const velocity & vel);
 
-  point _apply_well_effect(Particle *particle);
+  point _apply_wall_effect(Particle *particle);
 
-  void _apply_well_effect_low(
+  bool _apply_wall_effect_low(
     Particle *particle,
     std::pair<point, point> &two_points,
     double &portion
   );
 
-  void _apply_well_effect_low_wo_design(
+  bool _apply_wall_effect_low_adv(
     Particle *particle,
-    std::pair<point, point> &two_points,
-    double &portion
+    point & new_coord
   );
+
+  //double _cal_adv_wall_effect_portion(
+    //Particle *particle,
+    //point A,
+    //point B
+  //);
+
+  point _cal_wall_effect_position_based_on_A_B_porition(
+    Particle *particle,
+    point A,
+    point B,
+    double portion
+  );
+
+  bool _is_large_shift(point new_coord, point old_coord);
 
   bool _is_debug_step(int cur_step);
 
@@ -126,6 +152,8 @@ private:
   SimFlowGrid *_flowgrids;
 
   bool _debug_wall_effect;
+
+  int _current_sim_step;
 };
 
 }

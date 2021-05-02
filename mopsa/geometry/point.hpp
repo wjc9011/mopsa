@@ -11,10 +11,9 @@ using point = boost::geometry::model::d2::point_xy<double>;
 
 extern bool operator==(const point &p1, const point &p2);
 extern bool operator!=(const point &p1, const point &p2);
-
-extern point point_add(const point &p1, const point &p2);
-extern point point_minus(const point &p1, const point &p2);
-extern point point_scaling(const point &p1, double factor);
+extern point operator+(const point &p1, const point &p2);
+extern point operator-(const point &p1, const point &p2);
+extern point operator*(const point &p1, double factor);
 
 extern std::string to_string(const point &point);
 

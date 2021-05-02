@@ -31,6 +31,8 @@ public:
   bool overlap_obstacle(const Obstacle & obstacle, 
       std::vector<point> &res, bool debug);
 
+  void dump(std::ostream &os);
+
 private:
 
   point _current_coord;

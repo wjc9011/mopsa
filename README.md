@@ -25,20 +25,29 @@
 
 ## Setting parameters
 
-| Parameter          |  Type | Description |
-| ------------------ | ------| ----------- |
-| **init_x_shift**   | float | Initial x postion shift from 0|
-| **init_y_shift**   | float | Initial y postion shift from (design_width/2)|
-| **start_vx**   | float | Inital particle velocity in x direction |
-| **start_vy**   | float | Inital particle velocity in y direction |
-| **dPs** | List of float | The diamters of particle to simulate |
-|**resolution** | float | Simulation time resolution |
-|**boundary_x_ratio** | float |  Simulation boundary. When the x position of particle is greater than (design_width * boundary_x_ratio), we stop simulating|
-|**boundary_max_timestep**| float | The maximum step we simulate|
-|**alpha**| float | Calibration for vx|
-|**beta**|  float | Calibration for vy|
-|**output_folder**| string| A path for dumping the simulation result|
-|**dump_debug_file**| boolean | Dump the debug file|
+| Parameter          |  Type | Default | Description |
+| ------------------ | ------| --------| ----------- |
+| **init_x_shift**   | float | None    | Initial x postion shift from 0|
+| **init_y_shift**   | float | None    | Initial y postion shift from (design_width/2)|
+| **start_vx**       | float | None    | Inital particle velocity in x direction |
+| **start_vy**       | float | None    | Inital particle velocity in y direction |
+| **dPs**            | List of float | None | The diamters of particle to simulate |
+|**resolution**      | float | 1 | Simulation time resolution |
+|**boundary_x_ratio** | float |  0.95 | Simulation boundary. When the x position of particle is greater than (design_width * boundary_x_ratio), we stop simulating|
+|**boundary_max_timestep**| int | 100000 | The maximum step we simulate|
+|**alpha**| float | 1    | Calibration for vx|
+|**beta**|  float | 1.45 | Calibration for vy|
+|**output_folder**| string| None | A path for dumping the simulation result|
+|**dump_debug_file**| boolean | false | Dump the debug file|
+
+### Advance wall effect
+| Parameter          |  Type | Default | Description |
+| ------------------ | ------| --------| ----------- |
+|**use_advance_wall_effect** | boolean | true | Enable advance wall effect|
+|**adv_wall_effect_collision_threshold** | float | 0.01 |  |
+|**adv_wall_effect_candidate_threshold** | float | 1 | |
+|**adv_wall_effec_extra_shift** | float | 0.01 |  |
+|**debug_adv_wall_effect_consistency** | boolean | false | dump wall effect debug log in specious steps. Plot it with "plot_debug_advance_collision.py". |
 
 ## Run matalb
 - Make sure the output folder exists.

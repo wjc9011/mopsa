@@ -6,6 +6,13 @@ cwd=`pwd`
 
 cd ../build
 make -j16
+
+reval=$?
+if [ $reval -ne 0 ]; then
+  echo "Build fail"
+  exit
+fi
+
 cd $cwd
 
 if [ "$setting" = "" ]

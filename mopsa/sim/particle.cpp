@@ -10,6 +10,7 @@
 #include <omp.h>
 
 #include <iostream>
+#include <ostream>
 
 namespace mopsa
 {
@@ -32,14 +33,6 @@ Particle::Particle(
     _polygon.push_back({x, y});
   }
   _polygon.push_back( _polygon.startpoint() );
-
-  FILE *fp = fopen("particle.txt", "w");
-
-  fprintf(fp, "%lu\n", _polygon.size());
-  for(const auto &point : _polygon.outer()) {
-    fprintf(fp, "%lf %lf\n", point.x(), point.y());
-  }
-  fclose(fp);
 }
 
 void 
@@ -107,7 +100,7 @@ Particle::overlap_obstacle(
 
     #pragma omp parallel for
     for(int i=0; i<(int)_polygon.size(); i++) {
-      point x = mopsa::point_add(_polygon.outer()[i], _current_coord);
+      point x = _polygon.outer()[i] + _current_coord;
 
       bool within = false;
       within = obstacle.get_polygon().within(x);
@@ -138,7 +131,7 @@ Particle::overlap_obstacle(
 
       fprintf(fp, "%lu\n", _polygon.size());
       for(const auto &p : _polygon.outer()) {
-  point p2 = mopsa::point_add(p, _current_coord);
+  point p2 = p + _current_coord;
   fprintf(fp, "%lf %lf\n", p2.x(), p2.y());
       }
 
@@ -158,6 +151,16 @@ Particle::overlap_obstacle(
         to_string(obstacle.get_polygon().startpoint()) << std::endl;;
     }
     return res.size() >= 1;
+  }
+}
+
+void
+Particle::dump(std::ostream &os)
+{
+  os << _polygon.size() << '\n';
+  for(const auto &p : _polygon.outer()) {
+    point p2 = p + _current_coord;
+    os << p2.x() << " " << p2.y() << '\n';
   }
 }
 

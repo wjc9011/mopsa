@@ -8,8 +8,11 @@
 
 #include <omp.h>
 
+#include <cmath>
+#include <fstream>
 #include <filesystem>
 #include <iostream>
+#include <ostream>
 #include <string>
 #include <cstdio>
 #include <thread>
@@ -184,11 +187,68 @@ Simulate::Setting::read(const std::filesystem::path &path)
       _expect_token(read_token(), ";");
     }
 
-    else if(token == "use_design_obstacles") {
+  /* Wall effect */
+    else if(token == "adv_wall_effect_enabled") {
       _expect_token(read_token(), "=");
       std::string val = read_token();
-      use_design_obstacles = (val=="1" or val=="true");
+      adv_wall_effect_enabled = (val=="1" or val=="true");
       _expect_token(read_token(), ";");
+    }
+
+    else if(token == "adv_wall_effect_collision_threshold") {
+      _expect_token(read_token(), "=");
+      float val = 0;
+      if(!read_float(val)) {
+        ok = false;
+        break;
+      }
+      adv_wall_effect_collision_threshold = val;
+    }
+
+    else if(token == "adv_wall_effect_candidate_threshold") {
+      _expect_token(read_token(), "=");
+      float val = 0;
+      if(!read_float(val)) {
+        ok = false;
+        break;
+      }
+      adv_wall_effect_candidate_threshold = val;
+    }
+
+    else if(token == "adv_wall_effec_extra_shift") {
+      _expect_token(read_token(), "=");
+      float val = 0;
+      if(!read_float(val)) {
+        ok = false;
+        break;
+      }
+      adv_wall_effect_extra_shift = val;
+    }
+
+    else if(token == "debug_adv_wall_effect_consistency") {
+      _expect_token(read_token(), "=");
+      std::string val = read_token();
+      debug_adv_wall_effect_consistency = (val=="1" or val=="true");
+      _expect_token(read_token(), ";");
+    }
+
+    else if(token == "debug_step") {
+      _expect_token(read_token(), "=");
+      _expect_token(read_token(), "[");
+
+      int val;
+      while(!_is_end()) {
+        if(!read_int(val)) {
+          ok = false;
+          break;
+        }
+        debug_step.insert(val);
+        token = read_token();
+        if(token == "]") break;
+        else _expect_token(token, ",");
+      }
+      _expect_token(read_token(), ";");
+
     }
 
     else {
@@ -291,9 +351,19 @@ Simulate::Setting::dump(std::ostream &os)
   os << "alpha: " << alpha << '\n';
   os << "beta: " << beta << '\n';
   os << "-------\n";
+  os << "Use grid flow: "   << use_sim_gridflow << '\n';
+  os << "-------\n";
+  os << "adv_wall_effect_enabled: " << adv_wall_effect_enabled << '\n';
+  os << "adv_wall_effect_collision_threshold: " 
+    << adv_wall_effect_collision_threshold<< '\n';
+  os << "adv_wall_effect_candidate_threshold: " 
+    << adv_wall_effect_candidate_threshold << '\n';
+  os << "adv_wall_effect_extra_shift: " << 
+   adv_wall_effect_extra_shift << '\n';
+  os << "debug_adv_wall_effect_consistency: " << 
+   debug_adv_wall_effect_consistency << '\n';
+  os << "-------\n";
   os << "Dump debug file: " << dump_debug_file << '\n';
-  os << "Use Grid flow: "   << use_sim_gridflow << '\n';
-  os << "Use Design Obstacles: " << use_design_obstacles << '\n';
   os << "*************************\n";
   os << '\n';
 }
@@ -329,7 +399,7 @@ Simulate::_build_flow_grids()
 
   _flowgrids = new SimFlowGrid(_chip, max_dp);
 
-  return _flowgrids->build(_setting->use_design_obstacles);
+  return _flowgrids->build();
 }
 
 bool 
@@ -343,9 +413,11 @@ Simulate::simulate()
   bool ok = true;
   for(const auto &dp : _setting->dPs) {
 
-    mopsa::point p = {_chip->design().min_x(), 
-      (_chip->design().min_y() + _chip->design().max_y())/2};
-    p = mopsa::point_add(p, _setting->init_position_shift);
+    mopsa::point p = {
+      _chip->design().min_x(), 
+      (_chip->design().min_y() + _chip->design().max_y())/2
+    };
+    p = p + _setting->init_position_shift;
 
     mopsa::Particle particle(p, dp, 200);
 
@@ -363,7 +435,6 @@ Simulate::simulate()
 bool 
 Simulate::_simulate_low()
 {
-  int step_count = 0;
   std::vector<point> trajectory;
   double sim_boundary_x = 0;
   velocity pre_vel;
@@ -390,10 +461,11 @@ Simulate::_simulate_low()
     LOG(INFO) << "Dump debug file to " << name << '\n';
   }
 
+  _current_sim_step = 0;
   while(true) 
   {
-    step_count += 1;
-    bool debug = _is_debug_step(step_count);
+    _current_sim_step += 1;
+    bool debug = _is_debug_step(_current_sim_step);
 
     _debug_wall_effect = debug;
 
@@ -408,7 +480,7 @@ Simulate::_simulate_low()
 
     if(dump_debug_file) {
       //std::sort(covered_nodes_id->begin(), covered_nodes_id->end());
-      fprintf(debug_fp, "TimeStep: %d\n", step_count);
+      fprintf(debug_fp, "TimeStep: %d\n", _current_sim_step);
       fprintf(debug_fp, "Current position: %f %f\n", 
         _particle->coord().x(), _particle->coord().y()
       );
@@ -424,12 +496,12 @@ Simulate::_simulate_low()
     point new_coord = _apply_velocity(_particle, vel);
     (void)new_coord;
 
-    point after_wall = _apply_well_effect(_particle); 
+    point after_wall = _apply_wall_effect(_particle); 
     (void)after_wall;
 
     trajectory.push_back(_particle->coord());
     
-    if(step_count > _setting->max_timestep) {
+    if(_current_sim_step > _setting->max_timestep) {
       printf("\n");
       LOG(INFO) << "Stop due to simulation step > " 
         << _setting->max_timestep << '\n';
@@ -443,13 +515,13 @@ Simulate::_simulate_low()
       break;
     }
 
-    printf("step = %d, coord = %s\r", step_count, 
+    printf("step = %d, coord = %s\r", _current_sim_step, 
         to_string(_particle->coord()).c_str());
     std::fflush(stdout);
 
     if(debug) { 
       std::filesystem::path debug_file = 
-        "./debug_" + std::to_string(step_count) + ".txt";
+        "./debug_" + std::to_string(_current_sim_step) + ".txt";
 
       _dump(trajectory, debug_file);
 
@@ -655,54 +727,63 @@ Simulate::_apply_velocity(
 }
 
 point 
-Simulate::_apply_well_effect(Particle *particle)
+Simulate::_apply_wall_effect(Particle *particle)
 {
-  std::pair<point, point> two_points;
-  double                  portion = 0;
-  point                   coord = particle->coord();
+  point new_coord;
+  bool collision = false;
 
-  if(_setting->use_design_obstacles) {
-    _apply_well_effect_low(particle, two_points, portion);
+  if(_setting->adv_wall_effect_enabled) {
+    collision = _apply_wall_effect_low_adv(particle, new_coord);
   }
   else {
-    _apply_well_effect_low_wo_design(particle, two_points, portion);
+    std::pair<point, point> two_points;
+    double portion;
+    collision = _apply_wall_effect_low(particle, two_points, portion);
+    if(collision) {
+      new_coord = _cal_wall_effect_position_based_on_A_B_porition(
+        particle,
+        two_points.first, two_points.second,
+        portion
+      );
+    }
   }
 
-  auto [A, B] = two_points;
+  if(collision) {
+    particle->update_coord(new_coord);
 
-  point middle = mopsa::point_scaling(mopsa::point_add(A, B), 0.5);
-
-  point direction = mopsa::point_minus(particle->coord(), middle);
-  point dist = mopsa::point_scaling(direction, portion * _particle->radius());
-
-  point new_position = mopsa::point_add(particle->coord(), dist);
-  particle->update_coord(new_position);
-
-  if(_debug_wall_effect) {
-    std::cout << "!!!!" << portion << std::endl;
-    std::cout << "Cov front = " << to_string(A) << 
-      " back = " << to_string(B) << std::endl;
-    std::cout << "Middle = " << to_string(middle) << std::endl;
-    std::cout << "Direction = " << to_string(direction) << std::endl;
-
-    std::cout << to_string(coord) << " ===> " 
-      << to_string(new_position) << std::endl;
-    int a;
-    std::cin >> a;
+    Logger::add_record("Collision", to_string(particle->diameter()), 1);
   }
+
+  return particle->coord();
+}
+
+point 
+Simulate::_cal_wall_effect_position_based_on_A_B_porition(
+  Particle *particle,
+  point A,
+  point B,
+  double portion
+)
+{
+  point middle       = (A + B) * 0.5;
+  point direction    = particle->coord() - middle;
+  point dist         = direction * (portion * _particle->radius());
+  point new_position = particle->coord() + dist;
 
   return new_position;
 }
 
-
-void
-Simulate::_apply_well_effect_low(
+bool
+Simulate::_apply_wall_effect_low(
+  /* input */
   Particle *particle,
+  /* output */
   std::pair<point, point> &two_points,
   double &portion
 )
 {
   std::set<int> obstacles_cand;
+  bool          collision = false;
 
   if(_setting->use_sim_gridflow) {
     FlowBlockGroup group_blocks;
@@ -724,21 +805,342 @@ Simulate::_apply_well_effect_low(
     std::vector<point> res;
     if(particle->overlap_obstacle(obst, res, _debug_wall_effect)) {
 
-      two_points.first  = res.front();
-      two_points.second = res.back();
-      portion           = res.size() / 201;
-      return;
+      auto A = res.front();
+      auto B = res.back();
+      portion = (double) res.size() / 201.0;
+      two_points = {A, B};
+      collision = true;
+
+      if(_debug_wall_effect) {
+        point new_coord = _cal_wall_effect_position_based_on_A_B_porition(
+          particle,
+          A, B,
+          portion
+        );
+
+        point middle       = (A + B) * 0.5;
+        point direction    = particle->coord() - middle;
+
+        std::cout << "!!!!" << portion << std::endl;
+        std::cout << "Cov front = " << to_string(A) << 
+          " back = " << to_string(B) << std::endl;
+        std::cout << "Middle = " << to_string(middle) << std::endl;
+        std::cout << "Direction = " << to_string(direction) << std::endl;
+
+        std::cout << to_string(particle->coord()) << " ===> " 
+          << to_string(new_coord) << std::endl;
+        int a;
+        std::cin >> a;
+      }
     }
   }
+
+  return collision;
 }
 
-void Simulate::_apply_well_effect_low_wo_design(
+bool
+Simulate::_apply_wall_effect_low_adv(
   Particle *particle,
-  std::pair<point, point> &two_points,
-  double &portion
+  point & adv_new_position
 )
 {
+  ASSERT(_setting->use_sim_gridflow == true);
 
+  FlowBlockGroup group_blocks;
+  int num_obstacle_nodes = 0;
+  std::vector<point> points_on_circumference;
+  std::vector<point> points_in_particle;
+  std::vector<point> candidate_points;
+  point adv_A(0, 0), adv_B(0, 0);
+  bool adv_collision = false;
+  bool adv_collision_with_candidate = false;;
+  bool adv_collsion_by_candidate = false;
+
+  double collision_threshold 
+    = _setting->adv_wall_effect_collision_threshold;
+  double candidate_points_threshold 
+    = _setting->adv_wall_effect_candidate_threshold;
+  double extra_shift 
+    = _setting->adv_wall_effect_extra_shift;
+
+  _flowgrids->get_adjacent_blocks(_particle, group_blocks);
+  num_obstacle_nodes = group_blocks.size(FlowBlock::Type::obstacle_node);
+
+  for(int i=0; i<num_obstacle_nodes; i++) {
+    int node_id = group_blocks.get(FlowBlock::Type::obstacle_node, i);
+    const auto & node = _chip->flow().node(node_id);
+
+    double dist = boost::geometry::distance(_particle->coord(), node.coord);
+    dist = (dist - particle->radius());
+
+    if(fabs(dist) <= collision_threshold) {
+      points_on_circumference.push_back(node.coord);
+    }
+
+    else if(dist > 0 and dist < candidate_points_threshold) {
+      candidate_points.push_back(node.coord);
+    }
+
+    else if(dist < 0) {
+      points_in_particle.push_back(node.coord);
+    }
+  }
+
+  // Choose A B point
+  if(points_on_circumference.size() == 1) {
+    adv_B = adv_A = points_on_circumference.front();
+    adv_collision = true;
+  }
+  else if(points_on_circumference.size() == 2) {
+    adv_A = points_on_circumference.front();
+    adv_B = points_on_circumference.back();
+    adv_collision = true;
+  }
+  else if(points_on_circumference.size() > 3) {
+    LOG(WARNING) << "Over two points on circumference.\n";
+
+    adv_collision = true;
+    std::sort(points_on_circumference.begin(), points_on_circumference.end(),
+      [&](const point & a, const point &b)
+      {
+        point vec_a = a - _particle->coord();
+        point vec_b = b - _particle->coord();
+
+        double degree_a = std::atan2(vec_a.y(), vec_a.x());
+        double degree_b = std::atan2(vec_b.y(), vec_b.x());
+
+        return degree_a < degree_b;
+      }
+    );
+    adv_A = points_on_circumference.front();
+    adv_B = points_on_circumference.back();
+  }
+  else {
+    if(points_in_particle.size()) {
+      LOG(WARNING) << "Time resolution is too large."
+        " Cannot detect wall during simulation. "
+        "current step = \n" << _current_sim_step;
+    }
+
+    // Choose A B point from candidate_points
+    if(candidate_points.size() > 1) {
+      std::sort(candidate_points.begin(),candidate_points.end(),
+        [&](const point & a, const point &b)
+        {
+          double dista = boost::geometry::distance(_particle->coord(), a);
+          double distb = boost::geometry::distance(_particle->coord(), b);
+          return dista < distb;
+        }
+      );
+      point middle = 
+        (candidate_points.front() + candidate_points.back())*0.5;
+
+      double dist = boost::geometry::distance(_particle->coord(), middle);
+      dist = (dist - particle->radius());
+
+      if(fabs(dist) <= collision_threshold) {
+        adv_collision = true;
+        adv_collision_with_candidate = true;
+        adv_A = adv_B = middle;
+      }
+
+      adv_collsion_by_candidate = true;
+    }
+  }
+
+// Calculate new position
+  if(adv_collision) {
+    point middle = (adv_A + adv_B) * 0.5;
+    point dir = _particle->coord() - middle;
+
+    double len = boost::geometry::distance(dir, point(0,0));
+
+    double dist = (_particle->radius() - len) + extra_shift;
+
+    if(dist < 0) adv_collision = false;
+    else adv_new_position = _particle->coord() + dir * (dist/len);
+  }
+
+  if(!adv_collision) adv_new_position = _particle->coord();
+
+  bool consistency_check = false;
+  consistency_check = 
+    _setting->debug_adv_wall_effect_consistency | _debug_wall_effect;
+
+// Consistency check
+  if(consistency_check) {
+    point error;
+    bool adv_large_shift = false;
+    Particle tmp_particle = *particle;
+    Particle adv_particle = *particle;
+    Particle golden_particle = *particle;
+
+    adv_particle.update_coord(adv_new_position);
+
+  // Calculate golden position
+    std::pair<point, point> golden_two_points;
+    point golden_A, golden_B;
+    point golden_new_position;
+    bool golden_collision = false;
+    double golden_portion = 0;
+
+    golden_collision = _apply_wall_effect_low(particle, 
+      golden_two_points, golden_portion
+    );
+
+    golden_A = golden_two_points.first;
+    golden_B = golden_two_points.second;
+
+    golden_new_position = golden_collision? 
+      _cal_wall_effect_position_based_on_A_B_porition(
+        particle,
+        golden_A, golden_B,
+        golden_portion
+      )
+      :
+      particle->coord()
+    ;
+    golden_particle.update_coord(golden_new_position);
+
+    error = adv_new_position - golden_new_position;
+
+    if(adv_collision)
+      adv_large_shift = _is_large_shift(adv_new_position, particle->coord());
+
+  // Check new position is collided.
+    bool adv_new_pos_collision = false;
+    if(adv_collision) {
+      tmp_particle.update_coord(adv_new_position);
+      double tmp_porition = 0;
+      std::pair<point, point> tmp_two_points;
+      adv_new_pos_collision = _apply_wall_effect_low(&tmp_particle, 
+          tmp_two_points, tmp_porition);
+    }
+
+  // should we dump debug file
+    bool debug = 
+  (fabs(error.x()) >= 0.2 or fabs(error.y()) >= 0.2) 
+        or adv_new_pos_collision
+  or _debug_wall_effect
+  or adv_large_shift
+        or adv_collision_with_candidate 
+  //or adv_A != adv_B
+       //or golden_collision ^ adv_collision
+    ;
+
+    if(debug) 
+    {
+      std::cout << "\n";
+      std::cout << "Particle coord = " 
+  << to_string(_particle->coord()) << std::endl;
+      std::cout << "Adv large shift = " << adv_large_shift << std::endl;
+      std::cout << "Adv New position collision = " << adv_new_pos_collision 
+  << std::endl;
+      std::cout << "Adv collsion by candidate = " << 
+        adv_collsion_by_candidate << std::endl;
+      std::cout << "Adv points_on_circumference.size() = " <<
+        points_on_circumference.size() << std::endl;
+      std::cout << "Adv candidate_points.size() = " 
+        << candidate_points.size() << std::endl;
+      std::cout << "Adv collision with candidate points: " << 
+        adv_collision_with_candidate << std::endl;
+
+      std::cout << "Golden:\n";
+      std::cout << "\tCollision : " << golden_collision << std::endl;
+      std::cout << "\tA         : " << to_string(golden_A) << std::endl;
+      std::cout << "\tB         : " << to_string(golden_B) << std::endl;
+      std::cout << "\tNew coord : " << to_string(golden_particle.coord()) 
+  << std::endl;
+      std::cout << "Advance collision:\n";
+      std::cout << "\tCollision : " << adv_collision << std::endl;
+      std::cout << "\tA         : " << to_string(adv_A) << std::endl;
+      std::cout << "\tB         : " << to_string(adv_B) << std::endl;
+      std::cout << "\tNew coord : " << to_string(adv_new_position)
+  << std::endl;
+      std::cout << "===================================\n";
+      std::cout << "Error: " <<  to_string(error) << std::endl << std::endl;
+
+      point middle = (adv_A + adv_B) * 0.5;
+      std::cout << "dist(Particle,middle) = " 
+        << boost::geometry::distance(middle, _particle->coord()) << std::endl;
+
+      for(auto point : candidate_points) {
+        double dista = boost::geometry::distance(_particle->coord(), point);
+        std::cout << dista << std::endl;
+      }
+
+      if(adv_collision) 
+      {
+        if(adv_collsion_by_candidate == false) {
+          point middle = (adv_A + adv_B) * 0.5;
+          double dist = boost::geometry::distance(middle, _particle->coord());
+          std::cout << "dist(Particle, middle) = " << dist << std::endl;
+          std::cout << "Move distacnce = " 
+            << _particle->radius() - dist << std::endl;
+        }
+        else {
+          point cand_middle = 
+            (candidate_points.front() + candidate_points.back()) *0.5;
+          std::cout << "dist(Particle,cand_middle) = " 
+            << boost::geometry::distance(cand_middle, _particle->coord()) << std::endl;
+        }
+      }
+
+      // dump debug information
+      std::ofstream out("debug_advance_collision.txt");
+      particle->dump(out);
+      adv_particle.dump(out);
+      golden_particle.dump(out);
+      group_blocks.dump_obstacle_nodes(_chip, out);
+      out << golden_collision << std::endl;
+      out << golden_A.x() << " " << golden_A.y() << std::endl;
+      out << golden_B.x() << " " << golden_B.y() << std::endl;
+      out << adv_collision << std::endl;
+      out << adv_A.x() << " " << adv_A.y() << std::endl;
+      out << adv_B.x() << " " << adv_B.y() << std::endl;
+      out.close();
+
+      //for(auto [dist, id] : nodes_distance) {
+  //std::cout << dist << ", " << id << "\n";
+      //}
+      int a;
+      std::cin >> a;
+    }
+  }
+
+  return adv_collision;
+}
+
+//double 
+//Simulate::_cal_adv_wall_effect_portion(
+  //Particle *particle,
+  //point A,
+  //point B
+//)
+//{
+  //if(A == B) {
+    //double distance = boost::geometry::distance(particle->coord(), A);
+    //double diff = distance - particle->radius();
+    //if(diff < 0) {
+      //return std::fabs(diff) / (particle->radius() * std::fabs(distance));
+    //}
+    //return 1.0/201;
+  //}
+  //else {
+    ////TODO:
+    //Logger::add_record("Adv collision", "Unable to calculate portion", 1);
+    //return 1.0/201;
+  //}
+//}
+
+bool 
+Simulate::_is_large_shift(
+  point new_coord, 
+  point old_coord
+)
+{
+  point diff = new_coord - old_coord;
+  return (std::fabs(diff.x()) >= 0.3) || (std::fabs(diff.y()) >= 0.3);
 }
 
 bool 

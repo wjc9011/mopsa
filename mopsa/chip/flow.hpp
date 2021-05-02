@@ -35,6 +35,8 @@ public:
 
   inline const auto & nodes() const;
 
+  inline const Node & node(int i) const;
+
 private:
 
   std::string read_comment() override;
@@ -61,6 +63,12 @@ inline const auto &
 Flow::nodes() const
 {
   return _nodes;
+}
+
+inline const Flow::Node & 
+Flow::node(int i) const
+{
+  return _nodes[i];
 }
 
 }

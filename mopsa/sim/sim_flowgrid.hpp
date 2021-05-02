@@ -64,6 +64,8 @@ public:
 
   inline int size(FlowBlock::Type type) const;
 
+  void dump_obstacle_nodes(Chip *chip, std::ostream &os);
+
 private:
 
   std::vector<FlowBlock*> _blocks;
@@ -80,11 +82,11 @@ public:
 
   ~SimFlowGrid();
   
-  bool build(bool with_design_obstacle);
+  bool build();
 
   inline FlowBlock* get_blocks(const point & node);
 
-  void get_adjacent_blocks(Particle *, std::vector<FlowBlock*>& );
+  void get_adjacent_blocks(Particle *, std::vector<FlowBlock*>&);
 
   void get_adjacent_blocks(Particle *, FlowBlockGroup &group);
 
@@ -222,9 +224,8 @@ SimFlowGrid::_get_flow_block(int gridx, int gridy)
 inline std::pair<int, int> 
 SimFlowGrid::_node_to_grid_xy(const point & node)
 {
-  auto node_shifted = point_minus(node,
-    {_chip->design().min_x(), _chip->design().min_y()}
-  );
+  auto node_shifted = node - 
+    point(_chip->design().min_x(), _chip->design().min_y());
 
   if(float_equal(node_shifted.x(), 0))  node_shifted.x(0);
   if(float_equal(node_shifted.y(), 0))  node_shifted.y(0);

@@ -3,6 +3,7 @@ import scipy.io
 import h5py
 import os
 import sys
+import math
 
 def open_by_h5py(design_path):
   mat = h5py.File(design_path)
@@ -57,12 +58,30 @@ def open_sim_result(path):
   with open(path, "r") as fp:
     num, dim = [float(x) for x in fp.readline().split()]
     num = int(num)
-    print(num, dim)
     for i in range(num):
       line = fp.readline()
       data.append([float(x) for x in line.split()])
 
   return data, dim
+
+def compare_two_traj(golden, data):
+  
+  xdiff = (golden[-1][0] - data[-1][0])
+  ydiff = (golden[-1][1] - data[-1][1])
+
+  print("#########################")
+  print("#        COMPARE        #")
+  print("#########################")
+  print("# of Nodes     : %d (golden) vs %d" % (len(golden), len(data)))
+  print("Final position :", golden[-1], "vs", data[-1])
+  print("Error          : %.6f %.6f" % (xdiff, ydiff))
+  
+  if(math.fabs(xdiff) <= 1 and math.fabs(ydiff) <= 1):
+    print("PASS!")
+    return True
+  else:
+    print("FAIL!")
+    return False
 
 
 if len(sys.argv) < 2:
@@ -97,12 +116,15 @@ colors = ['red', 'blue', 'green', 'yellow', 'purple', 'pink']
 color_id = 0
 dim_color_map = dict()
 
+golden_data = {}
+
 for file in os.listdir(sim_path):
   path = sim_path + '/' + file
   if path.endswith("txt") == False: continue
   if file.startswith("matlab") == False: continue
   print("Path:", path)
   data, dim = open_sim_result(path)
+  golden_data[str(dim)] = data
 
   if dim not in dim_color_map.keys():
     dim_color_map[dim] = colors[color_id]
@@ -115,6 +137,7 @@ for file in os.listdir(sim_path):
     circle = plt.Circle(data[i], dim/2.0, fill=False, linewidth=0.1, color=color)
     ax1.add_patch(circle)
 
+pass_all_dim = True
 for file in os.listdir(sim_path):
   path = sim_path + "/" + file
   if path.endswith("txt") == False: continue
@@ -129,9 +152,24 @@ for file in os.listdir(sim_path):
 
   print("# of position = %d, dim = %d, color = %s" %(len(data), dim, color))
 
+  if str(dim) in golden_data.keys():
+    res = compare_two_traj(golden_data[str(dim)], data)
+  else:
+    res = False
+  print("\n")
+
+  if res == False:
+    Pass_all_dim = False
+
   for i in range(0, len(data), 20):
     circle = plt.Circle(data[i], dim/2.0, fill=False, linewidth=0.1, color=color)
     ax2.add_patch(circle)
+
+print("=========================================")
+if pass_all_dim:
+  print("ALL PASS")
+else:
+  print("FAIL")
 
 print("Plot\n")
 plt.show()

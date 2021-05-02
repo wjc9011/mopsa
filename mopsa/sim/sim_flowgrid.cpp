@@ -16,7 +16,6 @@ namespace mopsa
 void 
 FlowBlock::_make_obstacle_unique()
 {
-
   std::sort(_obstacles.begin(), _obstacles.end());
   _obstacles.resize(
     std::unique(_obstacles.begin(), _obstacles.end()) - _obstacles.begin()
@@ -32,6 +31,17 @@ FlowBlockGroup::FlowBlockGroup()
   _blocks.reserve(9);
   for(size_t i=0; i<_size.size(); i++) {
     _size[i] = 0;
+  }
+}
+
+void 
+FlowBlockGroup::dump_obstacle_nodes(Chip *chip, std::ostream &os)
+{
+  os << size(FlowBlock::Type::obstacle_node) << '\n';
+  for(int i=0; i<size(FlowBlock::Type::obstacle_node); i++) {
+    int node_id = get(FlowBlock::Type::obstacle_node, i);
+    os << chip->flow().node(node_id).coord.x() << " " 
+       << chip->flow().node(node_id).coord.y() << '\n';
   }
 }
 
@@ -75,7 +85,7 @@ SimFlowGrid::~SimFlowGrid()
 }
 
 bool
-SimFlowGrid::build(bool with_design_obstacle)
+SimFlowGrid::build()
 {
   int node_id = -1;
   for(const auto & node : _chip->flow().nodes()) {
@@ -97,50 +107,64 @@ SimFlowGrid::build(bool with_design_obstacle)
       continue;
     }
 
-    if(with_design_obstacle == false and  
-      float_equal(node.vx, 0) and float_equal(node.vy, 0)) 
+    if(float_equal(node.vx, 0) and float_equal(node.vy, 0)) 
     {
       block->_obstacle_nodes.push_back(node_id);
     }
     else block->_nodes.push_back(node_id);
   }
 
-  if(with_design_obstacle) {
-    int obstacle_id = -1;
-    for(const auto & obstacle: _chip->design().obstacles()) {
-      obstacle_id += 1;
-      for(const auto & node: obstacle.get_polygon().outer()) {
-        auto * block = get_blocks(node);
-        if(!block) {
-          LOG(WARNING) << to_string(node) << " is out of design "
-            << to_string(_chip->design().upper_left()) << " x " 
-            << to_string(_chip->design().lower_right()) 
-          << '\n';
+  int obstacle_id = -1;
+  for(const auto & obstacle: _chip->design().obstacles()) {
+    obstacle_id += 1;
+    for(const auto & node: obstacle.get_polygon().outer()) {
+      auto * block = get_blocks(node);
+      if(!block) {
+  LOG(WARNING) << to_string(node) << " is out of design "
+    << to_string(_chip->design().upper_left()) << " x " 
+    << to_string(_chip->design().lower_right()) 
+  << '\n';
 
-          ASSERT( node.x() < _chip->design().min_x()
-              || node.x() > _chip->design().max_x()
-          );
+  ASSERT( node.x() < _chip->design().min_x()
+      || node.x() > _chip->design().max_x()
+  );
 
-          ASSERT( node.y() < _chip->design().min_y()
-             || node.y() > _chip->design().max_y()
-          );
+  ASSERT( node.y() < _chip->design().min_y()
+     || node.y() > _chip->design().max_y()
+  );
 
-          continue;
-        }
-        block->_obstacles.push_back(obstacle_id);
+  continue;
       }
+      block->_obstacles.push_back(obstacle_id);
     }
   }
 
-  size_t maximum = 0;
+  size_t maximum_nodes = 0;
+  size_t maximum_obstacle_nodes = 0;
+
+  size_t nodes_sum = 0;
+  size_t obstacle_node_sum = 0;
   for(int i=0; i<_num_blocks; i++) {
-    maximum = std::max(maximum, _flowgrid[i]._nodes.size());
+
+    nodes_sum	      += _flowgrid[i]._nodes.size();
+    obstacle_node_sum += _flowgrid[i]._obstacle_nodes.size();
+
+    maximum_nodes = 
+      std::max(maximum_nodes, _flowgrid[i]._nodes.size());
+
+    maximum_obstacle_nodes = 
+      std::max(maximum_obstacle_nodes, _flowgrid[i]._obstacle_nodes.size());
+
     _flowgrid[i]._make_obstacle_unique();
   }
 
   Logger::add_record("FlowGrid", "# of rows",    _num_row);
   Logger::add_record("FlowGrid", "# of columns", _num_column);
-  Logger::add_record("FlowGrid", "Maximum number nodes in block", _num_column);
+  Logger::add_record("FlowGrid", "# of nodes", nodes_sum);
+  Logger::add_record("FlowGrid", "# of obstacle nodes", obstacle_node_sum);
+  Logger::add_record("FlowGrid", "Maximum # of nodes in block", maximum_nodes);
+  Logger::add_record("FlowGrid", "Maximum # of obstacle  nodes in block", 
+      maximum_obstacle_nodes);
 
   return true;
 }
